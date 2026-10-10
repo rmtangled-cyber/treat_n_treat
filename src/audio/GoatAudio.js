@@ -188,10 +188,10 @@ export class GoatAudio {
     if (!this.ctx) return;
     const t = this.now + 0.005;
     const fresh = 1 - p.progress;
-    const e = p.energy ?? 1;
+    const e = (p.energy ?? 1) * 2.6;
     if (p.rumination) {
       // soft, wet, very regular grinding of the cud
-      this.noiseBurst({ t, dur: 0.22, type: 'bandpass', freq: 420 + Math.random() * 120, q: 0.9, gain: 0.16 * e, attack: 0.06, buf: this.brown, curve: 'lin' });
+      this.noiseBurst({ t, dur: 0.22, type: 'bandpass', freq: 420 + Math.random() * 120, q: 0.9, gain: 0.24 * e, attack: 0.06, buf: this.brown, curve: 'lin' });
       this.noiseBurst({ t: t + 0.03, dur: 0.16, type: 'bandpass', freq: 1500 + Math.random() * 500, q: 1.4, gain: 0.035 * e, attack: 0.04 });
       this.wetClicks(t + 0.08, 2, 0.03 * e);
       this.tone({ t, dur: 0.06, f0: 95, f1: 60, gain: 0.06 * e });
@@ -247,6 +247,12 @@ export class GoatAudio {
   bite(kind) {
     if (!this.ctx) return;
     const t = this.now + 0.005;
+    const bus = this.mouthBus;
+    this.mouthBus = this.biteBus || (this.biteBus = (() => { const g = this.ctx.createGain(); g.gain.value = 2.2; g.connect(bus); return g; })());
+    try { this.biteInner(kind, t); } finally { this.mouthBus = bus; }
+  }
+
+  biteInner(kind, t) {
     if (kind === 'snap') {
       this.noiseBurst({ t, dur: 0.006, type: 'highpass', freq: 1500, q: 0.7, gain: 0.9 });
       this.noiseBurst({ t: t + 0.002, dur: 0.07, type: 'bandpass', freq: 2700, q: 7, gain: 0.5 });
@@ -283,8 +289,8 @@ export class GoatAudio {
   swallow() {
     if (!this.ctx) return;
     const t = this.now + 0.01;
-    this.tone({ t, dur: 0.16, f0: 230, f1: 60, gain: 0.32 });
-    this.noiseBurst({ t, dur: 0.12, type: 'lowpass', freq: 500, q: 1, gain: 0.25, buf: this.brown, attack: 0.01 });
+    this.tone({ t, dur: 0.16, f0: 230, f1: 60, gain: 0.5 });
+    this.noiseBurst({ t, dur: 0.12, type: 'lowpass', freq: 500, q: 1, gain: 0.4, buf: this.brown, attack: 0.01 });
     this.wetClicks(t + 0.02, 2, 0.05);
   }
 
@@ -336,8 +342,8 @@ export class GoatAudio {
     out.gain.value = 0;
     // amplitude envelope
     out.gain.setValueAtTime(0, t);
-    out.gain.linearRampToValueAtTime(0.5, t + 0.07);
-    out.gain.setValueAtTime(0.5, t + dur * 0.7);
+    out.gain.linearRampToValueAtTime(0.65, t + 0.07);
+    out.gain.setValueAtTime(0.65, t + dur * 0.7);
     out.gain.linearRampToValueAtTime(0.36, t + dur * 0.85);
     out.gain.linearRampToValueAtTime(0, t + dur);
 
@@ -442,11 +448,11 @@ export class GoatAudio {
     wf.type = 'lowpass';
     wf.frequency.value = 500;
     const wg = ctx.createGain();
-    wg.gain.value = 0.05;
+    wg.gain.value = 0.025;
     const lfo = ctx.createOscillator();
     lfo.frequency.value = 0.07;
     const lg = ctx.createGain();
-    lg.gain.value = 0.03;
+    lg.gain.value = 0.015;
     lfo.connect(lg).connect(wg.gain);
     lfo.start();
     wind.connect(wf).connect(wg).connect(this.master);
