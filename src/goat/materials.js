@@ -146,7 +146,7 @@ export function createEyeMaterial() {
         float irisR = 0.68;
         float r = th / irisR;
         vec3 sclera = vec3(0.62, 0.55, 0.46);
-        vec3 iris = mix(vec3(0.78, 0.5, 0.12), vec3(0.95, 0.74, 0.3), eNoise(vec2(ang * 9.0, r * 3.0)));
+        vec3 iris = mix(vec3(0.62, 0.34, 0.06), vec3(0.86, 0.58, 0.16), eNoise(vec2(ang * 9.0, r * 3.0)));
         float fib = eNoise(vec2(ang * 38.0, r * 6.0));
         iris *= 0.8 + 0.35 * fib;
         iris = mix(iris, vec3(0.45, 0.28, 0.08), smoothstep(0.2, 0.0, r - 0.32) * 0.5); // collarette

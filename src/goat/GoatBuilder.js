@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import {
   BONES, boneWorldPositions, isHeadFrameBone, HEAD_PITCH, headToWorld, goatSDF,
-  EYE_C, EYE_R, JAW_BIND_OPEN,
+  EYE_C, EYE_R, JAW_BIND_OPEN, EYE_GAZE, headSDF,
 } from './anatomy.js';
 import { createGoatMaterials, createShellMaterial, createEyeMaterial, goatUniforms } from './materials.js';
 import { toGeometry, srgbToLinear } from '../jobs.js';
@@ -39,7 +39,7 @@ function hornGeometry(points, r0, r1, side) {
       pos.push(p.x * side, p.y, p.z);
       nor.push(n.x * side, n.y, n.z);
       const streak = 0.85 + 0.15 * Math.sin(a * 7 + u * 3);
-      const base = THREE.MathUtils.lerp(0.5, 0.66, u) * streak;
+      const base = THREE.MathUtils.lerp(0.58, 0.74, u) * streak;
       col.push(base, base * 0.93, base * 0.82);
     }
   }
@@ -161,7 +161,19 @@ export function buildGoat({ furShells = 14, results }) {
   const bodyGeo = toGeometry(body, { skinned: true });
   const headGeo = toGeometry(head, { skinned: true });
   const meshes = [];
-  const bodyMesh = new THREE.SkinnedMesh(bodyGeo, [mats.fur, mats.skin, mats.mucosa]);
+  // the body yields to the head mesh where they overlap on the neck
+  const bodyMats = [mats.fur, mats.skin, mats.mucosa].map((m) => {
+    const c = m.clone();
+    c.onBeforeCompile = m.onBeforeCompile;
+    c.customProgramCacheKey = m.customProgramCacheKey;
+    c.userData = m.userData;
+    c.polygonOffset = true;
+    c.polygonOffsetFactor = 1;
+    c.polygonOffsetUnits = 4;
+    return c;
+  });
+  mats.list.push(...bodyMats);
+  const bodyMesh = new THREE.SkinnedMesh(bodyGeo, bodyMats);
   const headMesh = new THREE.SkinnedMesh(headGeo, [mats.fur, mats.skin, mats.mucosa]);
   for (const m of [bodyMesh, headMesh]) {
     m.castShadow = true;
@@ -220,9 +232,10 @@ export function buildGoat({ furShells = 14, results }) {
   const eyeMat = createEyeMaterial();
   const lidMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, side: THREE.DoubleSide });
   const eyes = [];
+  const lidRimMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.7, sheen: 0.5, sheenColor: new THREE.Color(0.9, 0.88, 0.84) });
   for (const side of [1, -1]) {
     const bone = bones[side > 0 ? 'eyeL' : 'eyeR'];
-    const gaze = new THREE.Vector3(0.8 * side, 0.12, 0.58).normalize();
+    const gaze = new THREE.Vector3(EYE_GAZE[0] * side, EYE_GAZE[1], EYE_GAZE[2]).normalize();
     const baseQ = basisQuat([0, 1, 0], [gaze.x, gaze.y, gaze.z]);
     // basisQuat builds a frame whose +Z = gaze (re-orthogonalised against +Y)
     const pivot = new THREE.Object3D();
@@ -233,6 +246,10 @@ export function buildGoat({ furShells = 14, results }) {
     const upper = new THREE.Mesh(lidGeometry(EYE_R + 0.0005, -110, 62, true), lidMat);
     const lower = new THREE.Mesh(lidGeometry(EYE_R + 0.0004, 128, 260, false), lidMat);
     pivot.add(upper, lower);
+    // smooth almond-shaped lid rim hiding the socket edge
+    const rim = new THREE.Mesh(lidRimGeometry(baseQ, side), lidRimMat);
+    rim.castShadow = false;
+    pivot.add(rim);
     eyes.push({ side, bone, pivot, eye, upper, lower, baseQ: baseQ.clone(), gaze });
   }
 
@@ -347,6 +364,57 @@ export function buildGoat({ furShells = 14, results }) {
   };
 }
 
+// Almond-shaped torus around the eye opening (eye frame: x across, y up, z gaze).
+function lidRimGeometry(frameQ, side) {
+  // conforms to the skin: for each angle find how far out the face surface is
+  const segU = 72, segV = 14;
+  const pos = [], col = [], idx = [];
+  const R = 0.0128;
+  const ex = new THREE.Vector3(1, 0, 0).applyQuaternion(frameQ);
+  const ey = new THREE.Vector3(0, 1, 0).applyQuaternion(frameQ);
+  const ez = new THREE.Vector3(0, 0, 1).applyQuaternion(frameQ);
+  const c0 = new THREE.Vector3(EYE_C[0] * side, EYE_C[1], EYE_C[2]);
+  const depthAt = (x, y) => {
+    let t = 0.04;
+    const p = new THREE.Vector3();
+    while (t > -0.012) {
+      p.copy(c0).addScaledVector(ex, x).addScaledVector(ey, y).addScaledVector(ez, t);
+      if (headSDF(p.x, p.y, p.z) < 0) break;
+      t -= 0.0002;
+    }
+    return t;
+  };
+  for (let i = 0; i <= segU; i++) {
+    const u = (i / segU) * Math.PI * 2;
+    const cx = Math.cos(u) * R, cy = Math.sin(u) * R * 0.82 - Math.cos(u) * 0.001;
+    const rx = Math.cos(u), ry = Math.sin(u) / 0.82;
+    const rl = Math.hypot(rx, ry);
+    // where the eyeball meets the skin
+    const depth = Math.max(depthAt(cx + (rx / rl) * 0.0035, cy + (ry / rl) * 0.0035), Math.sqrt(Math.max(0, 0.0145 ** 2 - R * R * 0.8)));
+    for (let j = 0; j <= segV; j++) {
+      const v = (j / segV) * Math.PI * 2;
+      const tube = 0.0027 * (1 + 0.3 * Math.max(0, Math.sin(u))); // fuller upper lid
+      const r = Math.cos(v) * tube;
+      pos.push(cx + (rx / rl) * r, cy + (ry / rl) * r, depth - 0.0016 + Math.sin(v) * tube * 0.6);
+      // dark pigmented margin on the inner edge, furred skin outside
+      const inner = Math.max(0, -Math.cos(v)) * Math.max(0, Math.sin(v) + 0.3);
+      const m = Math.min(1, inner * 2.2);
+      col.push(0.86 - 0.66 * m, 0.83 - 0.68 * m, 0.77 - 0.63 * m);
+    }
+  }
+  for (let i = 0; i < segU; i++)
+    for (let j = 0; j < segV; j++) {
+      const a = i * (segV + 1) + j, b = a + segV + 1;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(srgbToLinear(new Float32Array(col)), 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 // Partial sphere for eyelids. Angles (degrees) measured in the eye's Y-Z plane
 // from +Y toward +Z (gaze); the lid rotates about the eye's X axis to blink.
 function lidGeometry(r, a0, a1, upper) {
@@ -362,11 +430,11 @@ function lidGeometry(r, a0, a1, upper) {
       const x = rr * Math.cos(th);
       const s = rr * Math.sin(th);
       pos.push(x, s * Math.cos(phi), s * Math.sin(phi));
-      const margin = Math.pow(edgeT, 14);
+      const margin = Math.pow(edgeT, 6);
       col.push(
-        THREE.MathUtils.lerp(0.9, 0.42, margin),
-        THREE.MathUtils.lerp(0.87, 0.3, margin),
-        THREE.MathUtils.lerp(0.8, 0.3, margin)
+        THREE.MathUtils.lerp(0.86, 0.2, margin),
+        THREE.MathUtils.lerp(0.83, 0.15, margin),
+        THREE.MathUtils.lerp(0.77, 0.14, margin)
       );
     }
   }

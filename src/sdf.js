@@ -125,7 +125,7 @@ export function noise3(x, y, z) {
  * resolutions stay cheap. Vertices are projected onto the iso-surface and
  * normals come from the analytic-ish SDF gradient for smooth shading.
  */
-export function meshSDF(f, min, max, cell) {
+export function meshSDF(f, min, max, cell, normalFn = null) {
   const nx = Math.ceil((max[0] - min[0]) / cell) + 1;
   const ny = Math.ceil((max[1] - min[1]) / cell) + 1;
   const nz = Math.ceil((max[2] - min[2]) / cell) + 1;
@@ -249,6 +249,13 @@ export function meshSDF(f, min, max, cell) {
       const dist = (a + b + c + d4) * 0.25;
       const step = clamp(dist, -cell * 0.6, cell * 0.6);
       x -= gx * step; y -= gy * step; z -= gz * step;
+    }
+    if (normalFn) {
+      const a = normalFn(x + e, y - e, z - e), b = normalFn(x - e, y - e, z + e);
+      const c = normalFn(x - e, y + e, z - e), d4 = normalFn(x + e, y + e, z + e);
+      gx = a - b - c + d4; gy = -a - b + c + d4; gz = -a + b - c + d4;
+      const gl = Math.hypot(gx, gy, gz) || 1;
+      gx /= gl; gy /= gl; gz /= gl;
     }
     P[v] = x; P[v + 1] = y; P[v + 2] = z;
     N[v] = gx; N[v + 1] = gy; N[v + 2] = gz;

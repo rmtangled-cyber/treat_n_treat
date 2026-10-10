@@ -86,6 +86,18 @@ hud.setFood(0, foods);
 let timeScale = 1;
 let started = false;
 
+// fur quality (shell count) — F toggles, and it drops automatically on slow GPUs
+const FUR_LEVELS = ['高', '低', 'オフ'];
+let furLevel = 0;
+function setFurLevel(l) {
+  furLevel = l;
+  goat.shells.forEach((m, i) => {
+    const layer = Math.floor(i / 2);
+    m.visible = l === 0 || (l === 1 && layer % 2 === 1);
+  });
+}
+let perfAcc = 0, perfFrames = 0, perfChecks = 0;
+
 const startEl = document.getElementById('start');
 document.getElementById('loading').classList.add('hidden');
 startEl.classList.remove('hidden');
@@ -113,6 +125,10 @@ addEventListener('keydown', (e) => {
     hud.setSlowmo(timeScale);
   }
   if (e.code === 'KeyJ') hud.toggleJaw();
+  if (e.code === 'KeyF') {
+    setFurLevel((furLevel + 1) % 3);
+    hud.hint(`毛並みの品質：${FUR_LEVELS[furLevel]}`);
+  }
   if (e.code === 'KeyR') {
     ctrl.forceRuminate();
     hud.hint('ゆきが反芻を始めた（首の左側に注目）');
@@ -222,6 +238,20 @@ function frame(fixedDt, noRender = false) {
   world.update(rdt, t, ctrl.pos.clone().setY(0.5));
   audio.updateListener(camera);
   audio.updateSources(ctrl.getMouthPosition(mouthPos), ctrl.getBodyPosition(bodyPos));
+
+  if (!SHOT && started) {
+    perfAcc += rdt;
+    perfFrames++;
+    if (perfAcc > 3) {
+      const avg = perfAcc / perfFrames;
+      if (avg > 0.03 && furLevel < 2 && perfChecks < 4) {
+        setFurLevel(furLevel + 1);
+        hud.hint(`動作を軽くするため毛並み品質を「${FUR_LEVELS[furLevel]}」にしました（F で変更）`);
+      }
+      perfChecks++;
+      perfAcc = perfFrames = 0;
+    }
+  }
 
   hudTimer -= rdt;
   if (hudTimer <= 0) {

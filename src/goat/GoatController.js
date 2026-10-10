@@ -935,7 +935,7 @@ export class GoatController {
     const close = Math.max(lid, relaxed);
     const look = this.lookTarget;
     for (const e of g.eyes) {
-      e.upper.rotation.x = -0.08 + close * 0.92;
+      e.upper.rotation.x = -0.3 + close * 1.12;
       e.lower.rotation.x = -close * 0.25;
       // gaze toward the look target, pupils kept horizontal (they counter-roll)
       e.pivot.updateMatrixWorld(true);

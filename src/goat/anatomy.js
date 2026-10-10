@@ -48,8 +48,8 @@ export const BONES = [
   { name: 'tongue3', parent: 'tongue2', local: [0, 0.0, 0.04] },
   { name: 'earL', parent: 'head', local: [0.046, 0.062, 0.02] },
   { name: 'earR', parent: 'head', local: [-0.046, 0.062, 0.02] },
-  { name: 'eyeL', parent: 'head', local: [0.0535, 0.027, 0.1] },
-  { name: 'eyeR', parent: 'head', local: [-0.0535, 0.027, 0.1] },
+  { name: 'eyeL', parent: 'head', local: [0.0565, 0.027, 0.1] },
+  { name: 'eyeR', parent: 'head', local: [-0.0565, 0.027, 0.1] },
   // forelegs
   { name: 'scapulaL', parent: 'spine2', pos: [0.1, 0.7, 0.21] },
   { name: 'humerusL', parent: 'scapulaL', pos: [0.1, 0.55, 0.33] },
@@ -131,7 +131,7 @@ const nostrilL = makeOrientedEllipsoid([0.0148, 0.0105, 0.262], [0.0021, 0.0085,
 const NOSTRIL_MR = mulM(rotZ(0.55), rotY(-0.35));
 const nostrilR = makeOrientedEllipsoid([-0.0148, 0.0105, 0.262], [0.0021, 0.0085, 0.0065], NOSTRIL_MR);
 
-export const EYE_C = [0.0535, 0.027, 0.1];
+export const EYE_C = [0.0565, 0.027, 0.1];
 export const EYE_R = 0.0145;
 export const MOUTH_Y = -0.033; // slit height at the lips (head local)
 // The head is sculpted with the jaw dropped by this angle so the mesher can
@@ -157,12 +157,33 @@ export function cavitySDF(x, y, z) {
   return Math.min(slit, cav);
 }
 
+// eye frame (left eye; mirrored for the right): gaze looks out and forward
+const EG = (() => { const v = [0.8, 0.12, 0.58]; const l = Math.hypot(...v); return v.map((c) => c / l); })();
+const EX = (() => { // horizontal axis across the eye, perpendicular to the gaze
+  const up = [0, 1, 0];
+  const x = [up[1] * EG[2] - up[2] * EG[1], up[2] * EG[0] - up[0] * EG[2], up[0] * EG[1] - up[1] * EG[0]];
+  const l = Math.hypot(...x); return x.map((c) => c / l);
+})();
+const EY = [EG[1] * EX[2] - EG[2] * EX[1], EG[2] * EX[0] - EG[0] * EX[2], EG[0] * EX[1] - EG[1] * EX[0]];
+export const EYE_GAZE = EG;
+function lidRing(x, y, z) {
+  const dx = x - EYE_C[0], dy = y - EYE_C[1], dz = z - EYE_C[2];
+  const lx = dx * EX[0] + dy * EX[1] + dz * EX[2];
+  const ly = dx * EY[0] + dy * EY[1] + dz * EY[2];
+  const lz = dx * EG[0] + dy * EG[1] + dz * EG[2] - 0.0068;
+  // almond: wider than tall, slightly tilted
+  const ex = lx / 1.0, ey = (ly + lx * 0.12) / 0.78;
+  const rho = Math.hypot(ex, ey);
+  const q = rho - 0.0118;
+  return Math.hypot(q, lz) - 0.0026;
+}
+
 export function headSDF(x, y, z) {
   const ax = Math.abs(x);
   let d = sdEllipsoid(x, y, z, 0, 0.03, 0.045, 0.05, 0.05, 0.066); // cranium
   d = smin(d, sdEllipsoid(x, y, z, 0, 0.042, 0.004, 0.04, 0.036, 0.034), 0.02); // poll/occiput
   d = smin(d, sdEllipsoid(x, y, z, 0, 0.045, 0.095, 0.05, 0.033, 0.05), 0.02); // frontal
-  d = smin(d, sdEllipsoid(ax, y, z, 0.045, 0.028, 0.099, 0.021, 0.023, 0.025), 0.016); // orbital rim
+  d = smin(d, sdEllipsoid(ax, y, z, 0.043, 0.028, 0.099, 0.021, 0.023, 0.025), 0.016); // orbital rim
   d = smin(d, sdRoundCone(x, y, z, 0, 0.04, 0.115, 0, 0.02, 0.222, 0.037, 0.024), 0.02); // nasal bridge
   d = smin(d, sdRoundCone(ax, y, z, 0.03, -0.002, 0.105, 0.02, -0.008, 0.212, 0.03, 0.021), 0.02); // maxilla
   d = smin(d, sdEllipsoid(x, y, z, 0, 0.0, 0.234, 0.03, 0.03, 0.034), 0.016); // muzzle
@@ -177,8 +198,6 @@ export function headSDF(x, y, z) {
   d = smin(d, sdEllipsoid(x, y, z, 0, -0.052, 0.115, 0.026, 0.017, 0.08), 0.02); // intermandibular
   // subtle skin irregularity
   if (d < 0.004) d += 0.00022 * noise3(x * 120, y * 120, z * 120);
-  // eye sockets (the eyeball mesh sits inside)
-  d = smax(d, -sdSphere(ax, y, z, EYE_C[0], EYE_C[1], EYE_C[2], 0.0153), 0.0025);
   // carve nostrils + philtrum (cleft upper lip)
   d = smax(d, -Math.min(nostrilL(x, y, z), nostrilR(x, y, z)), 0.003);
   d = smax(d, -sdEllipsoid(x, y, z, 0, -0.025, 0.27, 0.0017, 0.0155, 0.0065), 0.002);
@@ -313,7 +332,7 @@ export function bodyMeshSDF(x, y, z) {
 export function headMeshSDF(x, y, z) {
   const t = splitT(x, y, z);
   if (-SPLIT_OVERLAP - t > 0.02) return -SPLIT_OVERLAP - t;
-  return Math.max(goatSDF(x, y, z) + smoothstep(-0.012, -SPLIT_OVERLAP, t) * 0.0025, -SPLIT_OVERLAP - t);
+  return Math.max(goatSDF(x, y, z), -SPLIT_OVERLAP - t);
 }
 
 // ------------------------------------------------------- surface attributes

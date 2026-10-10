@@ -16,7 +16,8 @@ function headBoxWorld() {
 }
 
 function skinnedSurface(f, min, max, cell) {
-  const m = meshSDF(f, min, max, cell);
+  // normals from the uncut, unshrunk field so head and body shade identically
+  const m = meshSDF(f, min, max, cell, A.goatSDF);
   const n = m.positions.length / 3;
   const color = new Float32Array(n * 3);
   const fur = new Float32Array(n);
