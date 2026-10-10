@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 
-export function createWorld(renderer, scene) {
+export function createWorld(renderer, scene, { grass: grassCount = 60000, shadowSize = 2048 } = {}) {
   // sky + sun
   const sky = new Sky();
   sky.scale.setScalar(4000);
@@ -37,7 +37,7 @@ export function createWorld(renderer, scene) {
   const sunLight = new THREE.DirectionalLight(0xfff1dc, 2.6);
   sunLight.position.copy(sun).multiplyScalar(12);
   sunLight.castShadow = true;
-  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.mapSize.set(shadowSize, shadowSize);
   const sc = sunLight.shadow.camera;
   sc.left = -3; sc.right = 3; sc.top = 3; sc.bottom = -3; sc.near = 0.5; sc.far = 30;
   sunLight.shadow.bias = -0.0003;
@@ -61,7 +61,7 @@ export function createWorld(renderer, scene) {
   groundMesh.receiveShadow = true;
   scene.add(groundMesh);
 
-  const grass = createGrass(new URLSearchParams(location.search).has('nograss') ? 0 : 60000);
+  const grass = createGrass(grassCount);
   scene.add(grass.mesh);
 
   // fence ring (paddock, radius 7 m)

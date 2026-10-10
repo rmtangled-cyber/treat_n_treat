@@ -1126,7 +1126,7 @@ export class GoatController {
     } else if (this.bolus.active) {
       sub = this.bolus.dir > 0 ? '飲み込んだ！ 首の左側を食塊が下っていく' : '食塊が首の左側を上がってくる（吐き戻し）';
     } else if (this.taskName === 'idle') {
-      sub = this.env.holdingFood ? '左クリック長押しで餌を差し出そう' : '';
+      sub = this.env.holdingFood ? this.offerHint || '' : '';
     }
     sub += `\n累計咀嚼 ${this.totalChews} 回`;
     this.status.main = main;

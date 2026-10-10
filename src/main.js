@@ -9,14 +9,20 @@ import { GoatAudio } from './audio/GoatAudio.js';
 import { Player } from './player.js';
 import { createFoods, FOOD_TYPES } from './food.js';
 import { HUD } from './ui.js';
+import { TouchControls, isTouchDevice } from './touch.js';
 
 const params = new URLSearchParams(location.search);
 const SHOT = params.has('shot');
 const DEBUG_ORBIT = params.has('orbit');
+// phones / tablets get touch controls and a lighter quality preset
+const TOUCH = isTouchDevice(params);
+document.body.classList.toggle('touch', TOUCH);
 
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: !SHOT, preserveDrawingBuffer: SHOT });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({
+  canvas, antialias: !SHOT, preserveDrawingBuffer: SHOT, powerPreference: 'high-performance',
+});
+renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -26,7 +32,10 @@ renderer.toneMappingExposure = 0.85;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(Number(params.get('fov') || 70), innerWidth / innerHeight, 0.015, 500);
 scene.add(camera);
-const world = createWorld(renderer, scene);
+const world = createWorld(renderer, scene, {
+  grass: params.has('nograss') ? 0 : TOUCH ? 18000 : 60000,
+  shadowSize: TOUCH ? 1024 : 2048,
+});
 
 // ------------------------------------------------------------ loading
 const loadBar = document.getElementById('load-bar');
@@ -40,7 +49,7 @@ const results = await runJobsParallel(['body', 'head', 'parts', 'hand'], (name) 
 });
 const [body, head, parts, handRes] = results;
 
-const furShells = params.has('nofur') ? 0 : Number(params.get('fur') || 14);
+const furShells = params.has('nofur') ? 0 : Number(params.get('fur') || (TOUCH ? 6 : 14));
 const goat = buildGoat({ furShells, results: { body, head, parts } });
 scene.add(goat.group);
 
@@ -81,7 +90,7 @@ function selectFood(i) {
 }
 
 // ------------------------------------------------------------ HUD / input
-const hud = new HUD(foods);
+const hud = new HUD(foods, (i) => selectFood(i));
 hud.setFood(0, foods);
 let timeScale = 1;
 let started = false;
@@ -98,21 +107,78 @@ function setFurLevel(l) {
 }
 let perfAcc = 0, perfFrames = 0, perfChecks = 0;
 
+// ------------------------------------------------------------ actions
+function toggleSlowmo() {
+  timeScale = timeScale === 1 ? 0.5 : timeScale === 0.5 ? 0.25 : 1;
+  hud.setSlowmo(timeScale);
+  touch?.setSlowmo(timeScale);
+}
+function cycleFur() {
+  setFurLevel((furLevel + 1) % 3);
+  hud.hint(`毛並みの品質：${FUR_LEVELS[furLevel]}`);
+}
+function ruminate() {
+  ctrl.forceRuminate();
+  hud.hint('ゆきが反芻を始めた（首の左側に注目）');
+}
+function callGoat() {
+  hud.hint('「ゆき〜！」');
+  setTimeout(() => ctrl.forceBleat(), 600);
+}
+
+ctrl.offerHint = TOUCH ? '🥕「あげる」を長押しして餌を差し出そう' : '左クリック長押しで餌を差し出そう';
 const startEl = document.getElementById('start');
+const hudEl = document.getElementById('hud');
+const startBtn = document.getElementById('start-btn');
 document.getElementById('loading').classList.add('hidden');
 startEl.classList.remove('hidden');
-document.getElementById('start-btn').addEventListener('click', () => {
+
+const touch = TOUCH
+  ? new TouchControls(player, {
+      menu: () => pauseTouch(),
+      slow: toggleSlowmo,
+      ruminate,
+      call: callGoat,
+      jaw: () => hud.toggleJaw(),
+      fur: cycleFur,
+    })
+  : null;
+if (TOUCH) {
+  hud.toggleJaw(); // the jaw monitor starts hidden on small screens
+  startBtn.textContent = 'タップして開始';
+}
+
+function pauseTouch() {
+  touch.hide();
+  startBtn.textContent = '続ける';
+  startEl.classList.remove('hidden');
+}
+
+startBtn.addEventListener('click', () => {
   audio.init();
-  player.lock();
   started = true;
+  if (TOUCH) {
+    startEl.classList.add('hidden');
+    hudEl.classList.remove('hidden');
+    touch.show();
+    // full screen + landscape where the browser allows it (Android); iOS ignores this
+    const de = document.documentElement;
+    const fs = de.requestFullscreen?.({ navigationUI: 'hide' }) || de.webkitRequestFullscreen?.();
+    Promise.resolve(fs)
+      .then(() => screen.orientation?.lock?.('landscape'))
+      .catch(() => {});
+  } else {
+    player.lock();
+  }
 });
 canvas.addEventListener('click', () => {
-  if (started && !player.locked) player.lock();
+  if (started && !TOUCH && !player.locked) player.lock();
 });
 document.addEventListener('pointerlockchange', () => {
+  if (TOUCH) return;
   const locked = document.pointerLockElement === canvas;
   startEl.classList.toggle('hidden', locked || DEBUG_ORBIT);
-  document.getElementById('hud').classList.toggle('hidden', !started);
+  hudEl.classList.toggle('hidden', !started);
   if (locked) audio.init();
 });
 addEventListener('keydown', (e) => {
@@ -120,26 +186,12 @@ addEventListener('keydown', (e) => {
     const n = Number(e.code.slice(5));
     if (n >= 1 && n <= foods.length) selectFood(n - 1);
   }
-  if (e.code === 'KeyT') {
-    timeScale = timeScale === 1 ? 0.5 : timeScale === 0.5 ? 0.25 : 1;
-    hud.setSlowmo(timeScale);
-  }
+  if (e.code === 'KeyT') toggleSlowmo();
   if (e.code === 'KeyJ') hud.toggleJaw();
-  if (e.code === 'KeyF') {
-    setFurLevel((furLevel + 1) % 3);
-    hud.hint(`毛並みの品質：${FUR_LEVELS[furLevel]}`);
-  }
-  if (e.code === 'KeyR') {
-    ctrl.forceRuminate();
-    hud.hint('ゆきが反芻を始めた（首の左側に注目）');
-  }
-  if (e.code === 'KeyB') {
-    hud.hint('「ゆき〜！」');
-    setTimeout(() => ctrl.forceBleat(), 600);
-  }
-  if (e.code === 'KeyH' || e.code === 'Escape') {
-    if (e.code === 'KeyH') document.exitPointerLock?.();
-  }
+  if (e.code === 'KeyF') cycleFur();
+  if (e.code === 'KeyR') ruminate();
+  if (e.code === 'KeyB') callGoat();
+  if (e.code === 'KeyH') document.exitPointerLock?.();
 });
 addEventListener('wheel', (e) => {
   if (!player.locked) return;
@@ -178,7 +230,8 @@ function frame(fixedDt, noRender = false) {
   // down to about goat-head height in front of you
   const o = player.offer;
   tug = Math.max(0, tug - rdt * 4);
-  const rest = tmp.set(0.2, -0.27, -0.42);
+  // keep the resting hand on screen in narrow (portrait) views
+  const rest = tmp.set(0.2 * Math.min(1, camera.aspect / 1.6), -0.27, -0.42);
   const fwdH = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
   const reach = 0.5 + 0.1 * Math.cos(player.pitch);
   const outW = new THREE.Vector3(player.pos.x, 0, player.pos.z).addScaledVector(fwdH, reach);
@@ -220,6 +273,7 @@ function frame(fixedDt, noRender = false) {
   foods.forEach((f, i) => {
     if (f.bitesLeft < lastBites[i]) {
       tug = 1;
+      if (TOUCH) navigator.vibrate?.(30); // feel the tug of the bite
       hud.setFood(foodIndex, foods);
     }
     lastBites[i] = f.bitesLeft;
@@ -267,8 +321,8 @@ function frame(fixedDt, noRender = false) {
 
 if (SHOT) {
   // deterministic stepping for headless screenshots
-  window.__frames = (n = 1, dt = 1 / 30) => {
-    for (let i = 0; i < n; i++) frame(dt, i < n - 1);
+  window.__frames = (n = 1, dt = 1 / 30, skipRender = false) => {
+    for (let i = 0; i < n; i++) frame(dt, i < n - 1 || skipRender);
   };
 }
 frame(SHOT ? 1 / 30 : undefined);

@@ -2,7 +2,10 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#1c1a16" />
 <title>Treat n Treat — ヤギの餌付け</title>
 <link rel="stylesheet" href="/src/style.css" />
 </head>
@@ -16,8 +19,18 @@
 <div id="start" class="hidden">
   <div class="panel">
     <h1>ヤギの餌付け観察デモ</h1>
-    <p class="lead">ザーネン種のメスヤギ「ゆき」に餌をあげて、口・顎・舌の動きと咀嚼音をじっくり観察しよう。<br>🎧 ヘッドホン推奨（立体音響）</p>
-    <table class="keys">
+    <p class="lead">ザーネン種のメスヤギ「ゆき」に餌をあげて、口・顎・舌の動きと咀嚼音をじっくり観察しよう。<br>🎧 ヘッドホン推奨（立体音響）<span class="touch-only"><br>📱 横向きにして遊んでください。消音モードだと音が出ない機種があります。</span></p>
+    <table class="keys touch-only">
+      <tr><td>左側をドラッグ</td><td>歩く（スティックを大きく倒すと少し速く）</td></tr>
+      <tr><td>右側をドラッグ</td><td>見回す（首と目の可動域内）</td></tr>
+      <tr><td>🥕 あげる（長押し）</td><td>手を差し出して餌をあげる</td></tr>
+      <tr><td>👁 注視（長押し）</td><td>じっと見る</td></tr>
+      <tr><td>⬇ 姿勢</td><td>立ち → 中腰 → しゃがみ</td></tr>
+      <tr><td>◀ ▶（長押し）</td><td>体を傾けてのぞき込む</td></tr>
+      <tr><td>下の餌ボタン</td><td>餌を選ぶ</td></tr>
+      <tr><td>右上のボタン</td><td>≡ メニュー / スロー / 反芻 / 呼ぶ / 顎の軌跡 / 毛並み品質</td></tr>
+    </table>
+    <table class="keys pc-only">
       <tr><td>マウス</td><td>見回す（首と目の可動域内）</td></tr>
       <tr><td>W A S D</td><td>歩く（Shift で少し速く）</td></tr>
       <tr><td>C</td><td>しゃがむ（立つ → 中腰 → しゃがみ）</td></tr>
@@ -46,6 +59,7 @@
   </div>
   <div id="hint"></div>
   <div id="slowmo"></div>
+  <div id="rotate-hint">📱 横向きにすると遊びやすくなります</div>
 </div>
 <script type="module" src="/src/main.js"></script>
 </body>

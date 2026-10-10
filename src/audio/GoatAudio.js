@@ -26,6 +26,12 @@ export class GoatAudio {
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    // iOS: let Web Audio play even when the ring/silent switch is on
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
+    } catch (e) {
+      /* not supported */
+    }
     const ctx = (this.ctx = new AC());
     this.enabled = true;
     this.master = ctx.createGain();

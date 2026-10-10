@@ -34,12 +34,15 @@ export class Player {
     this.offering = false;
     this.focus = false;
     this.locked = false;
+    this.touchActive = false; // set by the touch controls on phones/tablets
+    this.moveInput = { x: 0, y: 0 }; // virtual joystick (right, forward), magnitude <= 1
+    this.leanInput = 0;
     this.fov = camera.fov;
     this.onStep = null;
 
     addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
-      if (e.code === 'KeyC' && !e.repeat) this.stance = (this.stance + 1) % 3;
+      if (e.code === 'KeyC' && !e.repeat) this.cycleStance();
     });
     addEventListener('keyup', (e) => (this.keys[e.code] = false));
     addEventListener('blur', () => (this.keys = {}));
@@ -55,15 +58,28 @@ export class Player {
     dom.addEventListener('contextmenu', (e) => e.preventDefault());
     addEventListener('mousemove', (e) => {
       if (!this.locked) return;
-      const s = this.focus ? 0.0011 : 0.0021;
-      this.yaw -= e.movementX * s;
-      this.pitch -= e.movementY * s;
-      this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, this.pitch));
+      this.look(e.movementX, e.movementY, 0.0021);
     });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === dom;
       if (!this.locked) this.offering = this.focus = false;
     });
+  }
+
+  get active() {
+    return this.locked || this.touchActive;
+  }
+
+  // dx/dy in pixels; scale = radians per pixel
+  look(dx, dy, scale) {
+    const s = scale * (this.focus ? 0.52 : 1);
+    this.yaw -= dx * s;
+    this.pitch -= dy * s;
+    this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, this.pitch));
+  }
+
+  cycleStance() {
+    this.stance = (this.stance + 1) % 3;
   }
 
   get stanceLabel() {
@@ -86,12 +102,18 @@ export class Player {
     if (k.KeyA) wish.sub(right);
     const speed = (k.ShiftLeft || k.ShiftRight ? 2.3 : 1.25) * [1, 0.6, 0.4][this.stance];
     if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
+    else if (this.moveInput.x || this.moveInput.y) {
+      // joystick: walking speed follows how far the stick is pushed
+      wish.addScaledVector(right, this.moveInput.x).addScaledVector(fwd, this.moveInput.y);
+      const mag = Math.min(1, wish.length());
+      wish.normalize().multiplyScalar(speed * mag * (mag > 0.97 ? 1.35 : 1));
+    }
     this.vel.lerp(wish, 1 - Math.exp(-dt * 10));
     this.pos.addScaledVector(this.vel, dt);
 
     // crouch / lean
     this.eye += (EYE[this.stance] - this.eye) * (1 - Math.exp(-dt * 6));
-    this.leanT = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0);
+    this.leanT = Math.max(-1, Math.min(1, (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0) + this.leanInput));
     this.lean += (this.leanT - this.lean) * (1 - Math.exp(-dt * 7));
 
     // collisions: body capsule vs goat capsules, fence ring, props

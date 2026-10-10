@@ -1,6 +1,6 @@
 // HUD: food selector, behaviour status and the jaw-trajectory monitor.
 export class HUD {
-  constructor(foods) {
+  constructor(foods, onSelect) {
     this.bar = document.getElementById('food-bar');
     this.statusMain = document.getElementById('status-main');
     this.statusSub = document.getElementById('status-sub');
@@ -15,6 +15,11 @@ export class HUD {
       el.className = 'food-item';
       el.innerHTML = `<div class="k">${f.type.key}</div><div>${f.type.label}</div><div class="n"></div>`;
       this.bar.appendChild(el);
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onSelect && onSelect(i);
+      });
       return el;
     });
     this.lastMain = this.lastSub = '';
