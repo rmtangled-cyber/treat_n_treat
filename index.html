@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Treat n Treat — ヤギの餌付け</title>
+<link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="loading">
+  <div class="title">Treat n Treat</div>
+  <div class="sub">ヤギを造形中… <span id="load-step"></span></div>
+  <div class="bar"><div id="load-bar"></div></div>
+</div>
+<div id="start" class="hidden">
+  <div class="panel">
+    <h1>ヤギの餌付け観察デモ</h1>
+    <p class="lead">ザーネン種のメスヤギ「ゆき」に餌をあげて、口・顎・舌の動きと咀嚼音をじっくり観察しよう。<br>🎧 ヘッドホン推奨（立体音響）</p>
+    <table class="keys">
+      <tr><td>マウス</td><td>見回す（首と目の可動域内）</td></tr>
+      <tr><td>W A S D</td><td>歩く（Shift で少し速く）</td></tr>
+      <tr><td>C</td><td>しゃがむ（立つ → 中腰 → しゃがみ）</td></tr>
+      <tr><td>Q / E</td><td>体を左右に傾けてのぞき込む</td></tr>
+      <tr><td>左クリック（長押し）</td><td>手を差し出して餌をあげる</td></tr>
+      <tr><td>右クリック（長押し）</td><td>じっと見る（注視）</td></tr>
+      <tr><td>1〜4 / ホイール</td><td>餌を選ぶ（ニンジン・リンゴ・干し草・桑の葉）</td></tr>
+      <tr><td>T</td><td>スローモーション（1× → ½× → ¼×）</td></tr>
+      <tr><td>J</td><td>顎の軌跡モニター 表示/非表示</td></tr>
+      <tr><td>H</td><td>ヘルプ表示</td></tr>
+    </table>
+    <button id="start-btn">クリックして開始</button>
+  </div>
+</div>
+<div id="hud" class="hidden">
+  <div id="crosshair"></div>
+  <div id="food-bar"></div>
+  <div id="status"><div id="status-main"></div><div id="status-sub"></div></div>
+  <div id="jaw-panel">
+    <div class="jp-title">下顎切歯の軌跡（正面視）</div>
+    <canvas id="jaw-canvas" width="220" height="160"></canvas>
+    <div id="jaw-info"></div>
+  </div>
+  <div id="hint"></div>
+  <div id="slowmo"></div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
